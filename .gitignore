@@ -1,0 +1,30 @@
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude / Playwright MCP
+.claude/
+.playwright-mcp/
+
+# Screenshots
+*.png
+
+# Backend
+backend/.gradle/
+backend/build/
+backend/bin/
+backend/out/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# E2E
+e2e/node_modules/
+e2e/test-results/
+e2e/playwright-report/
