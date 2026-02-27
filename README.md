@@ -33,6 +33,129 @@ Guest 요청 → API → TextObfuscator로 글자 치환 (공백 유지) → 난
 
 난독화는 서버의 Presentation Layer(Response DTO)에서 처리한다. 클라이언트에 데이터가 도달하기 전에 이미 치환되므로, 프론트엔드를 아무리 조작해도 원본을 볼 수 없다.
 
+### Data Flow
+
+```mermaid
+flowchart LR
+    subgraph Client
+        A[Browser]
+    end
+
+    subgraph Server
+        B[Controller]
+        C{인증 여부?}
+        D[Service]
+        E[Repository]
+        F[TextObfuscator]
+        G[Response DTO]
+    end
+
+    subgraph DB
+        H[(H2 Database)]
+    end
+
+    A -- "GET /api/posts/1/comments" --> B
+    B --> C
+    C -- "Guest (user == null)" --> D
+    C -- "Authenticated" --> D
+    D --> E
+    E --> H
+    H --> E
+    E --> D
+    D -- "Entity List" --> G
+    C -. "isGuest=true" .-> G
+    G -- "난독화 분기" --> F
+    F -- "치환된 텍스트" --> G
+    G -- "난독화된 JSON\n{obfuscated: true}" --> A
+
+    style F fill:#fee,stroke:#c00
+    style C fill:#ffe,stroke:#aa0
+```
+
+### Sequence Diagram - Guest 요청
+
+```mermaid
+sequenceDiagram
+    actor Guest as Browser (Guest)
+    participant Filter as JwtAuthFilter
+    participant SC as SecurityContext
+    participant Ctrl as CommentController
+    participant Svc as CommentService
+    participant Repo as CommentRepository
+    participant DB as H2 Database
+    participant DTO as CommentResponse
+    participant Obf as TextObfuscator
+
+    Guest->>Filter: GET /api/posts/1/comments (No Token)
+    Filter->>Filter: Authorization 헤더 없음 - skip
+    Filter->>SC: Authentication = null
+    Filter->>Ctrl: doFilter()
+
+    Ctrl->>Ctrl: @AuthenticationPrincipal user = null
+    Ctrl->>Ctrl: isGuest = true
+    Ctrl->>Svc: findByPostId(1)
+    Svc->>Repo: findByPostId(1)
+    Repo->>DB: SELECT * FROM comments WHERE post_id = 1
+    DB-->>Repo: CommentEntity List
+    Repo-->>Svc: CommentEntity List
+    Svc-->>Ctrl: CommentEntity List
+
+    loop 각 CommentEntity
+        Ctrl->>DTO: CommentResponse.from(comment, isGuest=true)
+        DTO->>Obf: obfuscate("git bisect는 정말 신세계...")
+        Obf-->>DTO: "바아마 가아라라나마사 차카 사다다..."
+        DTO->>Obf: obfuscate("Alice Kim")
+        Obf-->>DTO: "차카아나라 바아타"
+    end
+
+    Ctrl-->>Guest: 200 OK [{content: "바아마...", author: "차카아나라...", obfuscated: true}]
+
+    Note over Guest: CSS blur + 오버레이 적용
+    Note over Guest: Network 탭에서도 난독화된 데이터만 보임
+```
+
+### Sequence Diagram - Authenticated 요청
+
+```mermaid
+sequenceDiagram
+    actor User as Browser (Authenticated)
+    participant Filter as JwtAuthFilter
+    participant JWT as JwtService
+    participant SC as SecurityContext
+    participant Ctrl as CommentController
+    participant Svc as CommentService
+    participant Repo as CommentRepository
+    participant DB as H2 Database
+    participant DTO as CommentResponse
+
+    User->>Filter: GET /api/posts/1/comments (Bearer eyJhbG...)
+    Filter->>Filter: Authorization 헤더에서 토큰 추출
+    Filter->>JWT: authenticate(token)
+    JWT->>JWT: 서명 검증 + 만료 확인
+    JWT-->>Filter: Authentication (email=alice@example.com)
+    Filter->>SC: Authentication 설정
+    Filter->>Ctrl: doFilter()
+
+    Ctrl->>Ctrl: @AuthenticationPrincipal user = UserDetails
+    Ctrl->>Ctrl: isGuest = false
+    Ctrl->>Svc: findByPostId(1)
+    Svc->>Repo: findByPostId(1)
+    Repo->>DB: SELECT * FROM comments WHERE post_id = 1
+    DB-->>Repo: CommentEntity List
+    Repo-->>Svc: CommentEntity List
+    Svc-->>Ctrl: CommentEntity List
+
+    loop 각 CommentEntity
+        Ctrl->>DTO: CommentResponse.from(comment, isGuest=false)
+        Note over DTO: TextObfuscator 호출하지 않음
+        Note over DTO: 원본 그대로 반환
+    end
+
+    Ctrl-->>User: 200 OK [{content: "git bisect는 정말...", author: "Alice Kim", obfuscated: false}]
+
+    Note over User: blur 없이 원본 텍스트 표시
+```
+
 ### 1. TextObfuscator - 텍스트 치환
 
 ```java
