@@ -29,7 +29,7 @@ Guest 요청 → API → TextObfuscator로 글자 치환 (공백 유지) → 난
 - **CSS blur 제거**해도 난독화된 텍스트만 보임
 - 로그인 후 같은 API 호출 시 원본 텍스트 확인 가능
 
-## Presentation Layer 핵심 로직
+## Presentation Layer 핵심 로직 
 
 난독화는 서버의 Presentation Layer(Response DTO)에서 처리한다. 클라이언트에 데이터가 도달하기 전에 이미 치환되므로, 프론트엔드를 아무리 조작해도 원본을 볼 수 없다.
 
@@ -311,6 +311,32 @@ cd backend
 ./gradlew test jacocoTestReport
 # 리포트: build/reports/jacoco/test/html/index.html
 ```
+
+## 동작 예시
+
+### 1. 비로그인 - 게시글 목록
+
+title만 원본으로 보이고, content와 author는 난독화 + blur 처리된다.
+
+![Guest - Post List](docs/01-guest-list.png)
+
+### 2. 비로그인 - 게시글 상세 + 댓글
+
+본문과 댓글 영역에 blur + 로그인 유도 오버레이가 표시된다.
+
+![Guest - Post Detail](docs/02-guest-detail.png)
+
+### 3. CSS blur 강제 제거
+
+개발자 도구에서 CSS blur를 제거해도 **난독화된 한글 텍스트만 보인다**. 서버에서 이미 치환된 데이터를 내려주기 때문에 원본은 절대 노출되지 않는다.
+
+![Blur Removed - Still Obfuscated](docs/03-blur-removed.png)
+
+### 4. 로그인 후
+
+인증된 사용자에게는 blur 없이 원본 텍스트가 그대로 표시된다.
+
+![Authenticated View](docs/04-authenticated.png)
 
 ## 검증 방법
 

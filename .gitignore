@@ -11,8 +11,8 @@ Thumbs.db
 .claude/
 .playwright-mcp/
 
-# Screenshots
-*.png
+# Screenshots (root only)
+/*.png
 
 # Backend
 backend/.gradle/
